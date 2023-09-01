@@ -29,6 +29,8 @@ func (g *StubGetter) Get(ctx context.Context, keys ...dskey.Key) (map[dskey.Key]
 	return out, nil
 }
 
+func (g *StubGetter) Update(context.Context, func(map[dskey.Key][]byte, error)) {}
+
 func (g *StubGetter) assertKeys(t *testing.T, keys ...dskey.Key) {
 	t.Helper()
 	for _, key := range keys {

@@ -112,7 +112,7 @@ func (p *postgresTestData) addTestData(ctx context.Context, data map[dskey.Key][
 		if _, ok := objects[fqid]; !ok {
 			objects[fqid] = make(map[string]json.RawMessage)
 		}
-		objects[fqid][k.Field] = v
+		objects[fqid][k.Field()] = v
 	}
 
 	conn, err := p.conn(ctx)

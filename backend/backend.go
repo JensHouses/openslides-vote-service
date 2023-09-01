@@ -14,20 +14,20 @@ import (
 )
 
 var (
-	envRedisHost = environment.NewVariable("VOTE_REDIS_HOST", "localhost", "Host of the redis used for the fast backend.")
-	envRedisPort = environment.NewVariable("VOTE_REDIS_PORT", "6379", "Port of the redis used for the fast backend.")
+	envRedisHost = environment.NewVariable("CACHE_HOST", "localhost", "Host of the redis used for the fast backend.")
+	envRedisPort = environment.NewVariable("CACHE_PORT", "6379", "Port of the redis used for the fast backend.")
 
-	envPostgresHost     = environment.NewVariable("VOTE_DATABASE_HOST", "localhost", "Host of the postgres database used for long polls.")
-	envPostgresPort     = environment.NewVariable("VOTE_DATABASE_PORT", "5432", "Port of the postgres database used for long polls.")
-	envPostgresUser     = environment.NewVariable("VOTE_DATABASE_USER", "openslides", "Databasename of the postgres database used for long polls.")
-	envPostgresDatabase = environment.NewVariable("VOTE_DATABASE_NAME", "openslides", "Name of the database to save long running polls.")
-	envPostgresPassword = environment.NewSecret("postgres_password", "Password of the postgres database used for long polls.")
+	envPostgresHost         = environment.NewVariable("VOTE_DATABASE_HOST", "localhost", "Host of the postgres database used for long polls.")
+	envPostgresPort         = environment.NewVariable("VOTE_DATABASE_PORT", "5432", "Port of the postgres database used for long polls.")
+	envPostgresUser         = environment.NewVariable("VOTE_DATABASE_USER", "openslides", "Databasename of the postgres database used for long polls.")
+	envPostgresDatabase     = environment.NewVariable("VOTE_DATABASE_NAME", "openslides", "Name of the database to save long running polls.")
+	envPostgresPasswordFile = environment.NewVariable("VOTE_DATABASE_PASSWORD_FILE", "/run/secrets/postgres_password", "Password of the postgres database used for long polls.")
 
 	envSingleInstance = environment.NewVariable("VOTE_SINGLE_INSTANCE", "false", "More performance if the serice is not scalled horizontally.")
 )
 
 // Build builds a fast and a long backends from the environment.
-func Build(lookup environment.Environmenter) (fast, long func(context.Context) (vote.Backend, error), singleInstance bool) {
+func Build(lookup environment.Environmenter) (fast, long func(context.Context) (vote.Backend, error), singleInstance bool, err error) {
 	// All environment variables have to be called in this function and not in a
 	// sub function. In other case they will not be included in the generated
 	// file environment.md.
@@ -47,10 +47,15 @@ func Build(lookup environment.Environmenter) (fast, long func(context.Context) (
 		return r, nil
 	}
 
+	dbPassword, err := environment.ReadSecret(lookup, envPostgresPasswordFile)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("reading postgres password: %w", err)
+	}
+
 	postgresAddr := fmt.Sprintf(
 		`user='%s' password='%s' host='%s' port='%s' dbname='%s'`,
 		encodePostgresConfig(envPostgresUser.Value(lookup)),
-		encodePostgresConfig(envPostgresPassword.Value(lookup)),
+		dbPassword,
 		encodePostgresConfig(envPostgresHost.Value(lookup)),
 		encodePostgresConfig(envPostgresPort.Value(lookup)),
 		encodePostgresConfig(envPostgresDatabase.Value(lookup)),
@@ -76,7 +81,7 @@ func Build(lookup environment.Environmenter) (fast, long func(context.Context) (
 		fast = buildMemory
 	}
 
-	return fast, long, singleInstace
+	return fast, long, singleInstace, nil
 }
 
 // encodePostgresConfig encodes a string to be used in the postgres key value style.

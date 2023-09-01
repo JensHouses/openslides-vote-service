@@ -106,10 +106,14 @@ func startPoll(ctx context.Context, db *postgresTestData, pollID int) error {
 			entitled_group_ids: [1]
 			global_yes: true
 
-		group/1/user_ids: [1]
+		group/1/meeting_user_ids: [10]
+		meeting_user/10:
+			user_id: 1
+			meeting_id: 1
+			group_ids: [1]
 		user/1:
 			is_present_in_meeting_ids: [1]
-			group_$1_ids: [1]
+			meeting_user_ids: [10]
 		meeting/1/id: 5
 		`,
 		pollID)))

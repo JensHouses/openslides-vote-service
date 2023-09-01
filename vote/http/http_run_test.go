@@ -44,7 +44,7 @@ func TestRun(t *testing.T) {
 	defer cancel()
 
 	backend := memory.New()
-	ds := dsmock.Stub{}
+	ds := dsmock.NewFlow(nil)
 	service, _, _ := vote.New(ctx, backend, backend, ds, true)
 	httpServer := votehttp.New(environment.ForTests(map[string]string{"VOTE_PORT": "0"}))
 

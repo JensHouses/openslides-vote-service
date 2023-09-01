@@ -11,6 +11,8 @@ import (
 )
 
 func TestPreload(t *testing.T) {
+	// Tests, that the preload function needs a specific number of requests to
+	// postgres.
 	ctx := context.Background()
 
 	for _, tt := range []struct {
@@ -30,15 +32,17 @@ func TestPreload(t *testing.T) {
 				backend: fast
 				type: pseudoanonymous
 
-			group/30/user_ids: [50]
+			group/30/meeting_user_ids: [500]
 
-			user:
-				50:
-					is_present_in_meeting_ids: [5]
-					group_$5_ids: [31]
-					is_present_in_meeting: [5]
+			user/50:
+				is_present_in_meeting_ids: [5]
+
+			meeting_user/500:
+				group_ids: [31]
+				user_id: 50
+				meeting_id: 5
 			`,
-			2,
+			3,
 		},
 
 		{
@@ -53,16 +57,19 @@ func TestPreload(t *testing.T) {
 				backend: fast
 				type: pseudoanonymous
 
-			group/30/user_ids: [50]
-			group/31/user_ids: [50]
+			group/30/meeting_user_ids: [500]
+			group/31/meeting_user_ids: [500]
 
 			user:
 				50:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
+
+			meeting_user/500:
+				user_id: 50
+				group_ids: [30]
+				meeting_id: 5
 			`,
-			2,
+			3,
 		},
 
 		{
@@ -77,20 +84,24 @@ func TestPreload(t *testing.T) {
 				backend: fast
 				type: pseudoanonymous
 
-			group/30/user_ids: [50,51]
+			group/30/meeting_user_ids: [500,510]
 
 			user:
 				50:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
 
 				51:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
+
+			meeting_user:
+				500:
+					user_id: 50
+					meeting_id: 5
+				510:
+					user_id: 51
+					meeting_id: 5
 			`,
-			2,
+			3,
 		},
 
 		{
@@ -105,21 +116,25 @@ func TestPreload(t *testing.T) {
 				backend: fast
 				type: pseudoanonymous
 
-			group/30/user_ids: [50]
-			group/31/user_ids: [51]
+			group/30/meeting_user_ids: [500]
+			group/31/meeting_user_ids: [510]
 
 			user:
 				50:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
 
 				51:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
+
+			meeting_user:
+				500:
+					user_id: 50
+					meeting_id: 5
+				510:
+					user_id: 51
+					meeting_id: 5
 			`,
-			2,
+			3,
 		},
 
 		{
@@ -134,29 +149,39 @@ func TestPreload(t *testing.T) {
 				backend: fast
 				type: pseudoanonymous
 
-			group/30/user_ids: [50]
-			group/31/user_ids: [51]
+			group/30/meeting_user_ids: [500]
+			group/31/meeting_user_ids: [510]
 
 			user:
 				50:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
-					vote_delegated_$5_to_id: 52
 
 				51:
 					is_present_in_meeting_ids: [5]
-					group_$5_ids: [30]
-					is_present_in_meeting: [5]
-					vote_delegated_$5_to_id: 53
 
 				52:
 					is_present_in_meeting_ids: [5]
 
 				53:
 					is_present_in_meeting_ids: [5]
+
+			meeting_user:
+				500:
+					user_id: 50
+					vote_delegated_to_id: 520
+					meeting_id: 5
+				510:
+					user_id: 51
+					vote_delegated_to_id: 530
+					meeting_id: 5
+				520:
+					user_id: 52
+					meeting_id: 5
+				530:
+					user_id: 53
+					meeting_id: 5
 			`,
-			3,
+			4,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -169,13 +194,12 @@ func TestPreload(t *testing.T) {
 			}
 
 			dsCount.(*dsmock.Counter).Reset()
-			poll.preload(ctx, dsfetch.New(ds))
 
-			if err != nil {
+			if err := poll.preload(ctx, dsfetch.New(ds)); err != nil {
 				t.Errorf("preload returned: %v", err)
 			}
 
-			if got := dsCount.(*dsmock.Counter).Value(); got != tt.expectCount {
+			if got := dsCount.(*dsmock.Counter).Count(); got != tt.expectCount {
 				buf := new(bytes.Buffer)
 				for _, req := range dsCount.(*dsmock.Counter).Requests() {
 					fmt.Fprintln(buf, req)

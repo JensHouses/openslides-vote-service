@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/OpenSlides/openslides-autoupdate-service/pkg/auth"
-	"github.com/OpenSlides/openslides-autoupdate-service/pkg/datastore"
 	"github.com/OpenSlides/openslides-autoupdate-service/pkg/environment"
 	messageBusRedis "github.com/OpenSlides/openslides-autoupdate-service/pkg/redis"
 	"github.com/OpenSlides/openslides-vote-service/backend"
@@ -104,17 +103,22 @@ func initService(lookup environment.Environmenter) (func(context.Context) error,
 	messageBus := messageBusRedis.New(lookup)
 
 	// Datastore Service.
-	datastoreService, dsBackground, err := datastore.New(lookup, messageBus)
+	database, err := vote.Flow(lookup, messageBus)
 	if err != nil {
-		return nil, fmt.Errorf("init datastore: %w", err)
+		return nil, fmt.Errorf("init database: %w", err)
 	}
-	backgroundTasks = append(backgroundTasks, dsBackground)
 
 	// Auth Service.
-	authService, authBackground := auth.New(lookup, messageBus)
+	authService, authBackground, err := auth.New(lookup, messageBus)
+	if err != nil {
+		return nil, fmt.Errorf("init auth system: %w", err)
+	}
 	backgroundTasks = append(backgroundTasks, authBackground)
 
-	fastBackendStarter, longBackendStarter, singleInstance := backend.Build(lookup)
+	fastBackendStarter, longBackendStarter, singleInstance, err := backend.Build(lookup)
+	if err != nil {
+		return nil, fmt.Errorf("init vote backend: %w", err)
+	}
 
 	service := func(ctx context.Context) error {
 		fastBackend, err := fastBackendStarter(ctx)
@@ -127,7 +131,7 @@ func initService(lookup environment.Environmenter) (func(context.Context) error,
 			return fmt.Errorf("start long backend: %w", err)
 		}
 
-		voteService, voteBackground, err := vote.New(ctx, fastBackend, longBackend, datastoreService, singleInstance)
+		voteService, voteBackground, err := vote.New(ctx, fastBackend, longBackend, database, singleInstance)
 		if err != nil {
 			return fmt.Errorf("starting service: %w", err)
 		}
